@@ -1,0 +1,36 @@
+Name: varnish
+Cartridge-Short-Name: VARNISH
+Display-Name: Downloadable Varnish cartridge 4.x
+Description: "A downloadable varnish cartridge for web caching.."
+Version: '4.1.0'
+Versions: ['4.1.0']
+License: BSD
+Vendor: Red Hat / Varnish
+Cartridge-Version: 0.1
+Cartridge-Vendor: community
+Source-Url: https://github.com/jelastic-public-cartridges/openshift-jelastic-varnish.git
+Categories:
+  - service
+  - web_framework
+Provides:
+  - varnish-0.1
+  - "varnish"
+Cart-Data:
+  - Key: LD_LIBRARH_PATH
+    Type: environment
+    Description: "Updated LD_LIBRARY_PATH"
+Group-Overrides:
+  - components:
+    - downloadable-varnish-0.1
+    - web_proxy
+Publishes:
+  publish-http-url:
+    Type: "NET_TCP:httpd-proxy-info"
+  publish-gear-endpoint:
+    Type: "NET_TCP:gear-endpoint-info"
+Subscribes:
+Endpoints:
+Scaling:
+  Min: 1
+  Max: -1
+Install-Build-Required: false

@@ -1,0 +1,5 @@
+getent group varnish >/dev/null || groupadd -r varnish
+getent passwd varnish >/dev/null || \
+	useradd -r -g varnish -d /var/lib/varnish -s /sbin/nologin \
+		-c "Varnish Cache" varnish
+exit 0

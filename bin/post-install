@@ -1,0 +1,7 @@
+#!/bin/bash -eu
+ln -sf /usr/lib64/libpcre.so.1 /usr/lib64/libpcre.so.0;
+source /etc/jelastic/environment;
+rm -f /opt/repo/pid/varnish.pid;
+rm -f /opt/repo/pid/varnishlog.pid
+[ -f $CARTRIDGE_HOME/vcl/default.vcl ] && mv -f $CARTRIDGE_HOME/vcl/default.vcl $CARTRIDGE_HOME/vcl/old/default.vcl.old;
+cp -f $CARTRIDGE_HOME/versions/$Version/etc/varnish/default.vcl $CARTRIDGE_HOME/vcl/default.vcl;

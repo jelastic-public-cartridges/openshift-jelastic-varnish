@@ -1,0 +1,128 @@
+#!/bin/bash -eu
+
+source /etc/jelastic/environment;
+
+source $OPENSHIFT_CARTRIDGE_SDK_BASH
+CALL=$1
+
+sudo /usr/sbin/setcap cap_net_bind_service=+ep ${OPENSHIFT_VARNISH_DIR}/versions/$Version/usr/sbin/varnishd
+
+[ ! -e $CARTRIDGE_HOME/versions/$Version/etc/sysconfig/varnish ] && cp $CARTRIDGE_HOME/versions/$Version/varnish_default $CARTRIDGE_HOME/versions/$Version/etc/sysconfig/varnish;
+
+[ ! -e $CARTRIDGE_HOME/vcl/default.vcl ] && cp  $CARTRIDGE_HOME/versions/$Version/etc/varnish/default.vcl $CARTRIDGE_HOME/vcl/default.vcl;
+
+[ ! -e /etc/nginx/nginx.conf ] && cp $CARTRIDGE_HOME/versions/$Version/nginx.conf /etc/nginx/nginx.conf;
+
+[ -e $CARTRIDGE_HOME/versions/$Version/etc/sysconfig/varnish ] && . /$CARTRIDGE_HOME/versions/$Version/etc/sysconfig/varnish
+
+function start {
+  
+  #sudo service nginx start > /dev/null 2>&1;
+  
+  local varnproc=`ps aux|grep varnishd|grep -v grep|awk '{print $2}'`;
+  [ -z "$varnproc" ] && rm -f /opt/repo/pid/varnish.pid;
+
+  local varnproc=`ps aux|grep varnishlog|grep -v grep|awk '{print $2}'`;
+  [ -z "$varnproc" ] && rm -f /opt/repo/pid/varnishlog.pid
+  
+  [ -z "$DAEMON_OPTS" ] && { DAEMON_OPTS=" -f ${CARTRIDGE_HOME}/vcl/default.vcl \
+    -T 0.0.0.0:80 \
+    -n ${CARTRIDGE_HOME}/versions/${Version}/var/lib/varnish -P ${CARTRIDGE_HOME}/pid/varnish.pid \
+    -a 127.0.0.1:81 \
+    -p vmod_dir=$CARTRIDGE_HOME/versions/$Version/usr/lib64/varnish/vmods/ \
+    -S ${CARTRIDGE_HOME}/secret \
+    -t 120 \
+    -p thread_pool_min=50 \
+    -p thread_pool_max=1000 \
+    -p thread_pool_timeout=120 \
+    -s malloc,80M \
+    -p vcl_dir=${CARTRIDGE_HOME}/vcl";}
+  
+  if ! [ -f $CARTRIDGE_HOME/pid/varnish.pid ]; then
+    "$CARTRIDGE_HOME/versions/$Version/usr/sbin/varnishd" $DAEMON_OPTS
+    ret=$?
+
+    if [ $ret -ne "0" ]
+        then
+                client_result "Varnish failed to start - $ret" 1>&2;
+                rm $CARTRIDGE_HOME/pid/varnish.pid;
+                return $ret;
+        else
+                echo "Varnish has been started successfully";
+    fi
+    
+    sleep 10;
+    [ ! -f $CARTRIDGE_HOME/pid/varnishlog.pid ] && { $CARTRIDGE_HOME/versions/$Version/usr/bin/varnishlog -A -a -n $CARTRIDGE_HOME/versions/$Version/var/lib/varnish -w $CARTRIDGE_HOME/logs/varnish.log -D -P $CARTRIDGE_HOME/pid/varnishlog.pid; }
+    return 0;
+    else 
+	echo "Varnish process already started";
+	return 0;
+	fi
+}
+
+function stop {
+  sudo service nginx stop > /dev/null 2>&1;
+  local varnproc=`ps aux|grep varnish|grep -v grep|awk '{print $2}'`;
+  if [ -z "$varnproc" ]; then
+        echo "Varnish is already stopped"; return 0;
+  else
+  [ -f $CARTRIDGE_HOME/pid/varnish.pid ] && { pid=$(<$CARTRIDGE_HOME/pid/varnish.pid); kill -s SIGTERM  $pid >/dev/null 2>&1; sleep 7; rm -f $CARTRIDGE_HOME/pid/varnish.pid; }
+  [ -f $CARTRIDGE_HOME/pid/varnishlog.pid ] && { pid=$(<$CARTRIDGE_HOME/pid/varnishlog.pid); kill -s SIGTERM  $pid >/dev/null 2>&1; sleep 7; rm -f $CARTRIDGE_HOME/pid/varnishlog.pid; }
+  varnproc=`ps aux|grep varnish|grep -v grep|awk '{print $2}'`;
+  [ -n "$varnproc" ] && kill -9 $varnproc > /dev/null 2>&1;
+  varnproc=`ps aux|grep varnish|grep -v grep|awk '{print $2}'`;
+  [ -z "$varnproc" ] && { echo "Varnish has been stopped successfully"; return 0; } || { echo "Varnish hasn't been stopped"; return 1; };
+  fi
+}
+
+function restart {
+  stop
+  start
+}
+
+function reload {
+    local varnproc=`ps aux|grep varnish|grep -v grep|awk '{print $2}'`;
+    if [ -n "$varnproc" ] 
+    then 
+    	local RELOAD=`< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c16`;
+    	$CARTRIDGE_HOME/versions/$Version/usr/bin/varnishadm -T 127.0.0.1:81 -S $CARTRIDGE_HOME/secret vcl.load $RELOAD $CARTRIDGE_HOME/vcl/default.vcl > /dev/null 2>&1;
+    	$CARTRIDGE_HOME/versions/$Version/usr/bin/varnishadm -T 127.0.0.1:81 -S $CARTRIDGE_HOME/secret vcl.use $RELOAD > /dev/null 2>&1;
+    	echo "Varnish configuration is reloaded successfully";
+    else
+	echo "Unable to reload config: Varnish process is stopped";
+    fi
+}
+
+function status {
+  if [ -f $CARTRIDGE_HOME/pid/varnish.pid ]; then
+    client_result  "Varnish cache is running"
+  else 
+    client_result "Varnish cache is stopped"
+  fi
+}
+
+function not_implemented {
+  echo "$CALL: not implemented"
+}
+
+case "$1" in
+  start)         start ;;
+  stop)          stop ;;
+  restart)       restart ;;
+  status)        status ;;
+  reload)        reload ;;
+  tidy)          not_implemented ;;
+  pre-build)     not_implemented ;;
+  build)         not_implemented ;;
+  deploy)        not_implemented ;;
+  post-deploy)   not_implemented ;;
+  pre-snapshot)  not_implemented ;;
+  post-snapshot) not_implemented ;;
+  pre-restore)   not_implemented ;;
+  post-restore)  not_implemented ;;
+  pre-receive)   not_implemented ;;
+  update-configuration) not_implemented ;;
+  *)           exit 0
+esac
+
+exit 0
