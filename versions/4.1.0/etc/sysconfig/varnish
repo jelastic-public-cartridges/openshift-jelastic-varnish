@@ -93,8 +93,13 @@ VARNISH_THREAD_TIMEOUT=120
 ### Next line contains Jelastic memory optimization for Varnish
 ### Storage amount is coundet due to memory available on Varnish node
 ### You can set any other value of VARNISH_STORAGE_SIZE manually if you want
-let JELASTIC_VARNISH_MEMORY_AMOUNT=`free -m| grep Mem | awk '{print $2}'`-48
-VARNISH_STORAGE_SIZE=${JELASTIC_VARNISH_MEMORY_AMOUNT}
+let JELASTIC_VARNISH_MEMORY_AMOUNT=`free -m| grep Mem | awk '{print $2}'`
+if [ $JELASTIC_VARNISH_MEMORY_AMOUNT -eq 128 ] ; then
+    let "VARNISH_STORAGE_SIZE = ${JELASTIC_VARNISH_MEMORY_AMOUNT} - 48"
+else
+    let "VARNISH_STORAGE_SIZE = ${JELASTIC_VARNISH_MEMORY_AMOUNT} - 128"
+fi
+
 #
 # # Backend storage specification
 VARNISH_STORAGE="malloc,${VARNISH_STORAGE_SIZE}M"
