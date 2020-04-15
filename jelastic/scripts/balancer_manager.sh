@@ -7,9 +7,10 @@ function _set_neighbors(){
 }
 
 function _rebuild_common(){
-    local RELOAD=`< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c16`;
-    $CARTRIDGE_HOME/versions/$Version/usr/bin/varnishadm -T 127.0.0.1:81 -S $CARTRIDGE_HOME/secret vcl.load $RELOAD $CARTRIDGE_HOME/vcl/default.vcl > /dev/null 2>&1;
-    $CARTRIDGE_HOME/versions/$Version/usr/bin/varnishadm -T 127.0.0.1:81 -S $CARTRIDGE_HOME/secret vcl.use $RELOAD > /dev/null 2>&1;
+    local ip_for_reload=$(netstat -nlpt|grep ':81'|awk '{print $4}'|awk -F ':' '{print $1}')
+    local RELOAD=`< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-16};echo;`;
+    $CARTRIDGE_HOME/versions/$Version/usr/bin/varnishadm -T ${ip_for_reload}:81 -S $CARTRIDGE_HOME/secret vcl.load $RELOAD $CARTRIDGE_HOME/vcl/default.vcl > /dev/null 2>&1;
+    $CARTRIDGE_HOME/versions/$Version/usr/bin/varnishadm -T ${ip_for_reload}:81 -S $CARTRIDGE_HOME/secret vcl.use $RELOAD > /dev/null 2>&1;
 }
 
 function _add_common_host(){
